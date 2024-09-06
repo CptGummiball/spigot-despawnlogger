@@ -46,6 +46,7 @@ log-nametags: false
 - **loggable-entities**: Define which entities' despawn events should be logged. You can specify any valid Minecraft entity name (e.g., `ZOMBIE`, `CREEPER`, `COW`).
 - **max-log-files**: Set the maximum number of log files to retain. If the number of files exceeds this limit, the oldest file will be deleted.
 - **log-nametags**: If `true`, the plugin will log the entity's nametag (if it has one) along with the other information. If `false`, the nametag will be omitted.
+- **restart-check-enabled**: Option to enable or disable restart checks
 
 ## Log Output
 
@@ -67,6 +68,10 @@ If **nametags** are not logged or the entity has no nametag:
 
 ```
 [2024-09-06 10:15:32] ZOMBIE despawned: Cause=FIRE, Location=[-100, 64, 200]
+```
+
+```
+[2024-09-06 10:15:32] COW was lost during restart at Location=[100, 64, -200]
 ```
 
 ## Contributing
