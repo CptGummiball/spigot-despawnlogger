@@ -1,12 +1,16 @@
 package com.cptgummiball.despawnlogger;
 
 import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityDamageEvent.DamageCause;
+import org.bukkit.event.entity.EntityRemoveFromWorldEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.BufferedWriter;
@@ -55,20 +59,45 @@ public class DespawnLogger extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
+        logEntityDespawn(event.getEntity(), event.getEntity().getLastDamageCause() != null ? event.getEntity().getLastDamageCause().getCause() : null);
+    }
+
+    @EventHandler
+    public void onEntityRemoveFromWorld(EntityRemoveFromWorldEvent event) {
+        // Check if the entity is a loggable entity
+        if (!(event.getEntity() instanceof LivingEntity)) return;
+
+        LivingEntity entity = (LivingEntity) event.getEntity();
+        logEntityDespawn(entity, null); // Despawn cause unknown (e.g., natural despawn, chunk unload)
+    }
+
+    @EventHandler
+    public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
+        String command = event.getMessage().toLowerCase();
+        if (command.startsWith("/kill")) {
+            // Handle the /kill command by logging the despawn of all affected entities
+            Bukkit.getScheduler().runTaskLater(this, () -> {
+                List<LivingEntity> entities = event.getPlayer().getWorld().getLivingEntities();
+                for (LivingEntity entity : entities) {
+                    if (!entity.isDead()) continue;
+                    logEntityDespawn(entity, DamageCause.CUSTOM);
+                }
+            }, 1L);
+        }
+    }
+
+    private void logEntityDespawn(LivingEntity entity, DamageCause cause) {
         // Check if the entity is in the list of loggable entities
         List<String> loggableEntities = config.getStringList("loggable-entities");
-        EntityType entityType = event.getEntityType();
+        EntityType entityType = entity.getType();
         if (!loggableEntities.contains(entityType.toString())) {
             return; // Not a loggable entity, return
         }
 
-        // Get despawn cause
-        DamageCause cause = event.getEntity().getLastDamageCause() != null ? event.getEntity().getLastDamageCause().getCause() : null;
-
         // Get entity location
-        String location = String.format("[%d, %d, %d]", event.getEntity().getLocation().getBlockX(),
-                event.getEntity().getLocation().getBlockY(),
-                event.getEntity().getLocation().getBlockZ());
+        String location = String.format("[%d, %d, %d]", entity.getLocation().getBlockX(),
+                entity.getLocation().getBlockY(),
+                entity.getLocation().getBlockZ());
 
         // Get current time
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
@@ -81,8 +110,8 @@ public class DespawnLogger extends JavaPlugin implements Listener {
                 .append(", Location=").append(location);
 
         // If nametag logging is enabled and the entity has a custom name
-        if (logNametags && event.getEntity().getCustomName() != null) {
-            logEntry.append(", Nametag='").append(event.getEntity().getCustomName()).append("'");
+        if (logNametags && entity.getCustomName() != null) {
+            logEntry.append(", Nametag='").append(entity.getCustomName()).append("'");
         }
 
         // Write log entry
