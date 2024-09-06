@@ -7,3 +7,6 @@ loggable-entities:
 
 # Maximum number of log files to keep
 max-log-files: 10
+
+# Whether to log nametags if the entity has one
+log-nametags: false

@@ -19,95 +19,101 @@ import java.util.List;
 import java.util.logging.Level;
 
 public class DespawnLogger extends JavaPlugin implements Listener {
-    private File logFolder;
+
     private FileConfiguration config;
-    private List<String> loggableEntities;
-    private int maxLogFiles;
+    private File logFolder;
+    private boolean logNametags;
 
     @Override
     public void onEnable() {
-        // Load the config file
+        // Load configuration
         saveDefaultConfig();
         config = getConfig();
-        loggableEntities = config.getStringList("loggable-entities");
-        maxLogFiles = config.getInt("max-log-files");
 
-        // Create log folder if it doesn't exist
+        // Log folder setup
         logFolder = new File(getDataFolder(), "logs");
         if (!logFolder.exists()) {
             logFolder.mkdirs();
         }
 
-        // Manage old logs
-        manageOldLogs();
-
         // Register event listeners
-        Bukkit.getPluginManager().registerEvents(this, this);
+        getServer().getPluginManager().registerEvents(this, this);
 
-        // Create a new log file on server start
-        createNewLog();
+        // Check max log files and clean up if necessary
+        checkMaxLogFiles();
+
+        // Load the setting for logging nametags
+        logNametags = config.getBoolean("log-nametags", false);
+
+        getLogger().info("DespawnLogger has been enabled.");
     }
 
     @Override
     public void onDisable() {
-        getLogger().info("DespawnLogger disabled.");
-    }
-
-    private void manageOldLogs() {
-        File[] logFiles = logFolder.listFiles();
-        if (logFiles != null && logFiles.length > maxLogFiles) {
-            // Sort by age and delete the oldest files
-            File oldest = logFiles[0];
-            for (File file : logFiles) {
-                if (file.lastModified() < oldest.lastModified()) {
-                    oldest = file;
-                }
-            }
-            if (!oldest.delete()) {
-                getLogger().log(Level.WARNING, "Could not delete old log file: " + oldest.getName());
-            } else {
-                getLogger().log(Level.INFO, "Deleted old log file: " + oldest.getName());
-            }
-        }
-    }
-
-    private File currentLogFile;
-
-    private void createNewLog() {
-        String timeStamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
-        currentLogFile = new File(logFolder, "log_" + timeStamp + ".txt");
-        try {
-            if (currentLogFile.createNewFile()) {
-                getLogger().log(Level.INFO, "Created new log file: " + currentLogFile.getName());
-            }
-        } catch (IOException e) {
-            getLogger().log(Level.SEVERE, "Error creating log file.", e);
-        }
+        getLogger().info("DespawnLogger has been disabled.");
     }
 
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
+        // Check if the entity is in the list of loggable entities
+        List<String> loggableEntities = config.getStringList("loggable-entities");
         EntityType entityType = event.getEntityType();
-        if (loggableEntities.contains(entityType.name())) {
-            String deathCause = "naturally";
-            if (event.getEntity().getLastDamageCause() != null) {
-                DamageCause cause = event.getEntity().getLastDamageCause().getCause();
-                deathCause = cause.name();
-            }
-            logDespawn(entityType.name(), deathCause, event.getEntity().getLocation().getBlockX(),
-                    event.getEntity().getLocation().getBlockY(), event.getEntity().getLocation().getBlockZ());
+        if (!loggableEntities.contains(entityType.toString())) {
+            return; // Not a loggable entity, return
         }
+
+        // Get despawn cause
+        DamageCause cause = event.getEntity().getLastDamageCause() != null ? event.getEntity().getLastDamageCause().getCause() : null;
+
+        // Get entity location
+        String location = String.format("[%d, %d, %d]", event.getEntity().getLocation().getBlockX(),
+                event.getEntity().getLocation().getBlockY(),
+                event.getEntity().getLocation().getBlockZ());
+
+        // Get current time
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        // Log entry format
+        StringBuilder logEntry = new StringBuilder();
+        logEntry.append("[").append(timestamp).append("] ")
+                .append(entityType).append(" despawned: ")
+                .append("Cause=").append(cause != null ? cause : "UNKNOWN")
+                .append(", Location=").append(location);
+
+        // If nametag logging is enabled and the entity has a custom name
+        if (logNametags && event.getEntity().getCustomName() != null) {
+            logEntry.append(", Nametag='").append(event.getEntity().getCustomName()).append("'");
+        }
+
+        // Write log entry
+        writeLog(logEntry.toString());
     }
 
-    private void logDespawn(String entityName, String cause, int x, int y, int z) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(currentLogFile, true))) {
-            String logEntry = String.format("[%s] %s despawned: Cause=%s, Location=[%d, %d, %d]",
-                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
-                    entityName, cause, x, y, z);
+    private void writeLog(String logEntry) {
+        File logFile = new File(logFolder, LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) + ".txt");
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(logFile, true))) {
             writer.write(logEntry);
             writer.newLine();
         } catch (IOException e) {
-            getLogger().log(Level.SEVERE, "Error writing to log file.", e);
+            getLogger().log(Level.SEVERE, "Failed to write to log file", e);
+        }
+    }
+
+    private void checkMaxLogFiles() {
+        int maxLogFiles = config.getInt("max-log-files", 10);
+        File[] logFiles = logFolder.listFiles((dir, name) -> name.endsWith(".txt"));
+
+        if (logFiles != null && logFiles.length > maxLogFiles) {
+            // Sort log files by last modified date and delete the oldest
+            File oldestFile = logFiles[0];
+            for (File file : logFiles) {
+                if (file.lastModified() < oldestFile.lastModified()) {
+                    oldestFile = file;
+                }
+            }
+            if (oldestFile.delete()) {
+                getLogger().info("Deleted oldest log file: " + oldestFile.getName());
+            }
         }
     }
 }
