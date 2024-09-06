@@ -27,18 +27,15 @@ DespawnLogger is a Spigot plugin for Minecraft (version 1.20 and higher) that lo
 After the first startup, you can configure the plugin using the `config.yml` file located in `plugins/DespawnLogger/config.yml`.
 
 ```yaml
-# List of mobs to be logged
+# config.yml
 loggable-entities:
   - ZOMBIE
-  - SKELETON
   - COW
   - VILLAGER
-
-# Maximum number of log files to keep
+  # Add other entities you want to log
 max-log-files: 10
-
-# Whether to log nametags if the entity has one
-log-nametags: false
+log-nametags: true
+restart-check-enabled: true  # New option to enable or disable restart checks
 ```
 
 ### Configurable Options
