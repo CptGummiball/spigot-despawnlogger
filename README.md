@@ -67,6 +67,8 @@ If **nametags** are not logged or the entity has no nametag:
 [2024-09-06 10:15:32] ZOMBIE despawned: Cause=FIRE, Location=[-100, 64, 200]
 ```
 
+If entities got lost during restart:
+
 ```
 [2024-09-06 10:15:32] COW was lost during restart at Location=[100, 64, -200]
 ```
