@@ -1,11 +1,12 @@
 # spigot-despawnlogger
 
-DespawnLogger is a Spigot plugin for Minecraft (version 1.20 and higher) that logs the despawn events of various NPCs, including animals, mobs, and villagers. Each log entry records the time, despawn cause (e.g., naturally, killed by player, or environmental damage), and the coordinates where the event occurred.
+DespawnLogger is a Spigot plugin for Minecraft (version 1.20 and higher) that logs the despawn events of various NPCs, including animals, mobs, and villagers. Each log entry records the time, despawn cause (e.g., naturally, killed by player, or environmental damage), the coordinates where the event occurred, and optionally, the entity's nametag (if it has one).
 
 ## Features
 
 - Logs the despawn of selected entities (e.g., zombies, skeletons, villagers).
 - Tracks the cause of despawn (e.g., natural, player kill, lava, etc.).
+- Optionally logs nametags of entities.
 - Saves logs as `.txt` files in the plugin folder.
 - Configurable list of entities to log.
 - Limits the number of log files retained (old files are automatically deleted).
@@ -17,7 +18,7 @@ DespawnLogger is a Spigot plugin for Minecraft (version 1.20 and higher) that lo
 
 ## Installation
 
-1. Download the latest release of DespawnLogger from the [Releases](https://github.com/cptgummiball/spigot-despawnlogger/releases) page.
+1. Download the latest release of DespawnLogger from the [Releases](https://github.com/yourusername/DespawnLogger/releases) page.
 2. Place the `DespawnLogger.jar` file into the `plugins` folder of your Spigot server.
 3. Start or reload your Minecraft server. The plugin will automatically create a `logs` folder and a `config.yml` file inside the `plugins/DespawnLogger` directory.
 
@@ -35,12 +36,16 @@ loggable-entities:
 
 # Maximum number of log files to keep
 max-log-files: 10
+
+# Whether to log nametags if the entity has one
+log-nametags: false
 ```
 
 ### Configurable Options
 
 - **loggable-entities**: Define which entities' despawn events should be logged. You can specify any valid Minecraft entity name (e.g., `ZOMBIE`, `CREEPER`, `COW`).
 - **max-log-files**: Set the maximum number of log files to retain. If the number of files exceeds this limit, the oldest file will be deleted.
+- **log-nametags**: If `true`, the plugin will log the entity's nametag (if it has one) along with the other information. If `false`, the nametag will be omitted.
 
 ## Log Output
 
@@ -50,8 +55,15 @@ Each time an entity despawns, a log entry is written in a `.txt` file inside the
 - The entity type
 - The cause of despawn (e.g., killed by a player, fire damage, etc.)
 - The despawn location (X, Y, Z coordinates)
+- Optionally, the entity's nametag (if present and `log-nametags` is set to `true`)
 
 Example log entry:
+
+```
+[2024-09-06 10:15:32] ZOMBIE despawned: Cause=FIRE, Location=[-100, 64, 200], Nametag='ZombieKing'
+```
+
+If **nametags** are not logged or the entity has no nametag:
 
 ```
 [2024-09-06 10:15:32] ZOMBIE despawned: Cause=FIRE, Location=[-100, 64, 200]
