@@ -1,6 +1,7 @@
 package com.cptgummiball.despawnlogger;
 
 import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
@@ -9,12 +10,11 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
-import org.bukkit.event.entity.EntityRemoveFromWorldEvent;
+import org.bukkit.event.world.ChunkUnloadEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -28,8 +28,8 @@ public class DespawnLogger extends JavaPlugin implements Listener {
 
     private FileConfiguration config;
     private File logFolder;
-    private File entityFile;
-    private Map<UUID, String[]> savedEntities = new HashMap<>();
+    private File entityBeforeFile;
+    private File entityAfterFile;
     private boolean restartCheckEnabled;
 
     @Override
@@ -37,7 +37,7 @@ public class DespawnLogger extends JavaPlugin implements Listener {
         // Load configuration
         saveDefaultConfig();
         config = getConfig();
-        
+
         // Get the option to enable/disable restart check
         restartCheckEnabled = config.getBoolean("restart-check-enabled", true);
 
@@ -53,11 +53,15 @@ public class DespawnLogger extends JavaPlugin implements Listener {
         // Check max log files and clean up if necessary
         checkMaxLogFiles();
 
-        // Load saved entities from previous session if restart check is enabled
+        // Load saved entities from previous session and compare after restart
         if (restartCheckEnabled) {
-            entityFile = new File(getDataFolder(), "entities_before_shutdown.yml");
-            if (entityFile.exists()) {
-                loadSavedEntities();
+            entityBeforeFile = new File(getDataFolder(), "entities_before_shutdown.yml");
+            entityAfterFile = new File(getDataFolder(), "entities_after_restart.yml");
+
+            if (entityBeforeFile.exists()) {
+                // Save entities after restart
+                saveEntitiesAfterRestart();
+                // Compare the two files
                 compareEntitiesAfterRestart();
             }
         }
@@ -78,12 +82,13 @@ public class DespawnLogger extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onEntityRemoveFromWorld(EntityRemoveFromWorldEvent event) {
-        // Check if the entity is a loggable entity
-        if (!(event.getEntity() instanceof LivingEntity)) return;
-
-        LivingEntity entity = (LivingEntity) event.getEntity();
-        logEntityDespawn(entity, null); // Despawn cause unknown (e.g., natural despawn, chunk unload)
+    public void onChunkUnload(ChunkUnloadEvent event) {
+        for (Entity entity : event.getChunk().getEntities()) {
+            if (entity instanceof LivingEntity) {
+                LivingEntity livingEntity = (LivingEntity) entity;
+                logEntityDespawn(livingEntity, null); // Cause is unknown (natural despawn or chunk unload)
+            }
+        }
     }
 
     private void logEntityDespawn(LivingEntity entity, EntityDamageEvent.DamageCause cause) {
@@ -143,48 +148,69 @@ public class DespawnLogger extends JavaPlugin implements Listener {
     private void saveEntitiesBeforeShutdown() {
         YamlConfiguration entityData = new YamlConfiguration();
 
-        for (Entity entity : Bukkit.getWorlds().get(0).getEntities()) { // Assuming we work with the main world
-            if (entity instanceof LivingEntity) {
-                String[] entityInfo = {
-                    entity.getType().toString(),
-                    entity.getLocation().getBlockX() + "," +
-                    entity.getLocation().getBlockY() + "," +
-                    entity.getLocation().getBlockZ()
-                };
-                entityData.set(entity.getUniqueId().toString(), entityInfo);
+        for (World world : Bukkit.getWorlds()) {
+            for (Entity entity : world.getEntities()) {
+                if (entity instanceof LivingEntity) {
+                    String[] entityInfo = {
+                        entity.getType().toString(),
+                        entity.getLocation().getBlockX() + "," +
+                        entity.getLocation().getBlockY() + "," +
+                        entity.getLocation().getBlockZ()
+                    };
+                    entityData.set(entity.getUniqueId().toString(), entityInfo);
+                }
             }
         }
 
         try {
-            entityData.save(entityFile);
+            entityData.save(entityBeforeFile);
         } catch (IOException e) {
             getLogger().log(Level.SEVERE, "Failed to save entities before shutdown", e);
         }
     }
 
-    private void loadSavedEntities() {
-        YamlConfiguration entityData = YamlConfiguration.loadConfiguration(entityFile);
+    private void saveEntitiesAfterRestart() {
+        YamlConfiguration entityData = new YamlConfiguration();
 
-        for (String key : entityData.getKeys(false)) {
-            String[] entityInfo = entityData.getStringList(key).toArray(new String[0]);
-            savedEntities.put(UUID.fromString(key), entityInfo);
+        for (World world : Bukkit.getWorlds()) {
+            for (Entity entity : world.getEntities()) {
+                if (entity instanceof LivingEntity) {
+                    String[] entityInfo = {
+                        entity.getType().toString(),
+                        entity.getLocation().getBlockX() + "," +
+                        entity.getLocation().getBlockY() + "," +
+                        entity.getLocation().getBlockZ()
+                    };
+                    entityData.set(entity.getUniqueId().toString(), entityInfo);
+                }
+            }
+        }
+
+        try {
+            entityData.save(entityAfterFile);
+        } catch (IOException e) {
+            getLogger().log(Level.SEVERE, "Failed to save entities after restart", e);
         }
     }
 
     private void compareEntitiesAfterRestart() {
-        for (Map.Entry<UUID, String[]> entry : savedEntities.entrySet()) {
-            UUID entityId = entry.getKey();
-            String[] entityInfo = entry.getValue();
+        YamlConfiguration beforeData = YamlConfiguration.loadConfiguration(entityBeforeFile);
+        YamlConfiguration afterData = YamlConfiguration.loadConfiguration(entityAfterFile);
 
-            Entity entity = Bukkit.getWorlds().get(0).getEntity(entityId); // Assuming we work with the main world
-            if (entity == null) {
-                String location = entityInfo[1];
+        for (String entityId : beforeData.getKeys(false)) {
+            if (!afterData.contains(entityId)) {
+                String[] entityInfo = beforeData.getString(entityId).split(",");
                 String type = entityInfo[0];
+                String location = entityInfo[1];
                 String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
                 String logEntry = "[" + timestamp + "] " + type + " was lost during restart at Location=" + location;
                 writeLog(logEntry);
             }
         }
-        entityFile.delete(); // Clean up after comparison
+
+        // Cleanup after comparison
+        entityBeforeFile.delete();
+        entityAfterFile.delete();
     }
-}
+                    }
