@@ -1,6 +1,5 @@
 name: DespawnLogger
-main: com.cptgummiball.despawnlogger.DespawnLogger
-version: 1.0
-api-version: 1.20
-author: CptGummiball
-description: Logs despawn events for NPCs such as animals, mobs, and villagers.
+version: '1.0'
+main: org.cptgummiball.despawnLogger.DespawnLogger
+api-version: '1.20'
+authors: [ cptgummiball ]
