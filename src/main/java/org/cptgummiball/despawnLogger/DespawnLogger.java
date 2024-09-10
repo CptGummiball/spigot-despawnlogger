@@ -6,6 +6,8 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
@@ -15,17 +17,13 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
 
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import java.util.logging.Level;
 
 public class DespawnLogger extends JavaPlugin implements Listener {
@@ -90,9 +88,70 @@ public class DespawnLogger extends JavaPlugin implements Listener {
         for (Entity entity : event.getChunk().getEntities()) {
             if (entity instanceof LivingEntity) {
                 LivingEntity livingEntity = (LivingEntity) entity;
-                logEntityDespawn(livingEntity, null); // Cause is unknown (natural despawn or chunk unload)
+                logEntityDespawn(livingEntity, EntityDamageEvent.DamageCause.CUSTOM); // Cause is now ChunkUnload
             }
         }
+    }
+
+    @Override
+    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (command.getName().equalsIgnoreCase("removeentity")) {
+            if (args.length > 0) {
+                String entityId = args[0];
+                Entity entity = getEntityById(entityId);
+                if (entity != null && entity instanceof LivingEntity) {
+                    logEntityPermanentRemoval((LivingEntity) entity, "Command");
+                    entity.remove();
+                    sender.sendMessage("Entity " + entityId + " removed.");
+                    return true;
+                } else {
+                    sender.sendMessage("Entity not found.");
+                    return false;
+                }
+            } else {
+                sender.sendMessage("Please provide an entity ID.");
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private Entity getEntityById(String id) {
+        for (World world : Bukkit.getWorlds()) {
+            for (Entity entity : world.getEntities()) {
+                if (entity.getUniqueId().toString().equals(id)) {
+                    return entity;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void logEntityPermanentRemoval(LivingEntity entity, String cause) {
+        List<String> loggableEntities = config.getStringList("loggable-entities");
+        EntityType entityType = entity.getType();
+        if (!loggableEntities.contains(entityType.toString())) {
+            return; // Not a loggable entity, return
+        }
+
+        String location = String.format("[%d, %d, %d]", entity.getLocation().getBlockX(),
+                entity.getLocation().getBlockY(),
+                entity.getLocation().getBlockZ());
+
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        StringBuilder logEntry = new StringBuilder();
+        logEntry.append("[").append(timestamp).append("] ")
+                .append(entityType).append(" permanently removed: ")
+                .append("Cause=").append(cause)
+                .append(", Location=").append(location);
+
+        // If nametag logging is enabled and the entity has a custom name
+        if (config.getBoolean("log-nametags", false) && entity.getCustomName() != null) {
+            logEntry.append(", Nametag='").append(entity.getCustomName()).append("'");
+        }
+
+        writeLog(logEntry.toString());
     }
 
     private void logEntityDespawn(LivingEntity entity, EntityDamageEvent.DamageCause cause) {
