@@ -6,8 +6,6 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.world.ChunkUnloadEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
@@ -23,11 +21,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 
-import static org.bukkit.event.entity.EntityDamageEvent.DamageCause.CUSTOM;
-import static org.bukkit.event.entity.EntityDamageEvent.DamageCause.KILL;
+import static org.bukkit.event.entity.EntityDamageEvent.DamageCause.*;
 
 public class DespawnLogger extends JavaPlugin implements Listener {
 
@@ -36,6 +34,37 @@ public class DespawnLogger extends JavaPlugin implements Listener {
     private File entityBeforeFile;
     private File entityAfterFile;
     private boolean restartCheckEnabled;
+    private List<String>entityCauses = Arrays.asList(
+            "DRAGON_BREATH",
+            "ENTITY_ATTACK",
+            "ENTITY_EXPLOSION",
+            "ENTITY_SWEEP_ATTACK",
+            "MAGIC",
+            "POISON",
+            "PROJECTILE",
+            "SONIC_BOOM",
+            "THORNS",
+            "WITHER");
+    private List<String>naturalCauses = Arrays.asList(
+            "BLOCK_EXPLOSION",
+            "CAMPFIRE",
+            "CONTACT",
+            "CRAMMING",
+            "DROWNING",
+            "FALL",
+            "FALLING_BLOCK",
+            "FIRE",
+            "FIRE_TICK",
+            "FLY_INTO_WALL",
+            "FREEZE",
+            "HOT_FLOOR",
+            "LAVA",
+            "LIGHTNING",
+            "MELTING",
+            "STARVATION",
+            "SUFFOCATION",
+            "SUICIDE",
+            "VOID");
 
     @Override
     public void onEnable() {
@@ -108,48 +137,42 @@ public class DespawnLogger extends JavaPlugin implements Listener {
                 entity.getLocation().getBlockZ());
 
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        StringBuilder logEntry = new StringBuilder();
+
         if (cause == KILL) {
-            StringBuilder logEntry = new StringBuilder();
             logEntry.append("[").append(timestamp).append("] ")
                     .append(entityType).append(" permanently removed: ")
                     .append("Cause=").append("Command")
                     .append(", Location=").append(location);
 
-            // If nametag logging is enabled and the entity has a custom name
-            if (config.getBoolean("log-nametags", false) && entity.getCustomName() != null) {
-                logEntry.append(", Nametag='").append(entity.getCustomName()).append("'");
-            }
-
-            writeLog(logEntry.toString());
-
         } else if (cause == CUSTOM) {
-            StringBuilder logEntry = new StringBuilder();
             logEntry.append("[").append(timestamp).append("] ")
                     .append(entityType).append(" temporarily removed: ")
                     .append("Cause=").append("ChunkUnload")
                     .append(", Location=").append(location);
 
-            // If nametag logging is enabled and the entity has a custom name
-            if (config.getBoolean("log-nametags", false) && entity.getCustomName() != null) {
-                logEntry.append(", Nametag='").append(entity.getCustomName()).append("'");
-            }
-
-            writeLog(logEntry.toString());
-
-        } else {
-            StringBuilder logEntry = new StringBuilder();
-            logEntry.append("[").append(timestamp).append("] ")
+        } else if (entityCauses.contains(cause)) {
+                logEntry.append("[").append(timestamp).append("] ")
                     .append(entityType).append(" permanently removed: ")
-                    .append("Cause=").append(cause != null ? cause : "UNKNOWN")
+                    .append("Cause=").append("Killed")
                     .append(", Location=").append(location);
 
-            // If nametag logging is enabled and the entity has a custom name
-            if (config.getBoolean("log-nametags", false) && entity.getCustomName() != null) {
-                logEntry.append(", Nametag='").append(entity.getCustomName()).append("'");
-            }
+        } else if (naturalCauses.contains(cause)){
+                logEntry.append("[").append(timestamp).append("] ")
+                        .append("Cause=").append("Naturally")
+                        .append(", Location=").append(location);
 
-            writeLog(logEntry.toString());
+        } else {
+            logEntry.append("[").append(timestamp).append("] ")
+                    .append("Cause=").append(cause != null ? cause : "UNKNOWN")
+                    .append(", Location=").append(location);
         }
+
+        // If nametag logging is enabled and the entity has a custom name
+        if (config.getBoolean("log-nametags", false) && entity.getCustomName() != null) {
+            logEntry.append(", Nametag='").append(entity.getCustomName()).append("'");
+        }
+        writeLog(logEntry.toString());
     }
 
         private void writeLog(String logEntry){
@@ -184,12 +207,15 @@ public class DespawnLogger extends JavaPlugin implements Listener {
 
             for (World world : Bukkit.getWorlds()) {
                 for (Entity entity : world.getEntities()) {
+                    String location = String.format("[%d, %d, %d]", entity.getLocation().getBlockX(),
+                            entity.getLocation().getBlockY(),
+                            entity.getLocation().getBlockZ());
+                    //String customname = entity.getCustomName();
                     if (entity instanceof LivingEntity) {
                         String[] entityInfo = {
                                 entity.getType().toString(),
-                                entity.getLocation().getBlockX() + "," +
-                                        entity.getLocation().getBlockY() + "," +
-                                        entity.getLocation().getBlockZ()
+                                location,
+                                //customname
                         };
                         entityData.set(entity.getUniqueId().toString(), entityInfo);
                     }
@@ -208,12 +234,15 @@ public class DespawnLogger extends JavaPlugin implements Listener {
 
             for (World world : Bukkit.getWorlds()) {
                 for (Entity entity : world.getEntities()) {
+                    String location = String.format("[%d, %d, %d]", entity.getLocation().getBlockX(),
+                            entity.getLocation().getBlockY(),
+                            entity.getLocation().getBlockZ());
+                    //String customname = entity.getCustomName();
                     if (entity instanceof LivingEntity) {
                         String[] entityInfo = {
                                 entity.getType().toString(),
-                                entity.getLocation().getBlockX() + "," +
-                                        entity.getLocation().getBlockY() + "," +
-                                        entity.getLocation().getBlockZ()
+                                location,
+                                //customname,
                         };
                         entityData.set(entity.getUniqueId().toString(), entityInfo);
                     }
@@ -236,6 +265,7 @@ public class DespawnLogger extends JavaPlugin implements Listener {
                     String[] entityInfo = beforeData.getString(entityId).split(",");
                     String type = entityInfo[0];
                     String location = entityInfo[1];
+                    //String customname = entityInfo[2];
                     String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 
                     String logEntry = "[" + timestamp + "] " + type + " was lost during restart at Location=" + location;
