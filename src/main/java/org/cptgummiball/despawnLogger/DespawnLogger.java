@@ -34,6 +34,7 @@ public class DespawnLogger extends JavaPlugin implements Listener {
     private File entityBeforeFile;
     private File entityAfterFile;
     private boolean restartCheckEnabled;
+    private boolean chunkUnloadLoggingEnabled;
     private List<String>entityCauses = Arrays.asList(
             "DRAGON_BREATH",
             "ENTITY_ATTACK",
@@ -74,6 +75,7 @@ public class DespawnLogger extends JavaPlugin implements Listener {
 
         // Get the option to enable/disable restart check
         restartCheckEnabled = config.getBoolean("restart-check-enabled", true);
+        chunkUnloadLoggingEnabled = config.getBoolean("chunk-unload-logging", true);
 
         // Log folder setup
         logFolder = new File(getDataFolder(), "logs");
@@ -146,10 +148,12 @@ public class DespawnLogger extends JavaPlugin implements Listener {
                     .append(", Location=").append(location);
 
         } else if (cause == CUSTOM) {
-            logEntry.append("[").append(timestamp).append("] ")
-                    .append(entityType).append(" temporarily removed: ")
-                    .append("Cause=").append("ChunkUnload")
-                    .append(", Location=").append(location);
+            if (chunkUnloadLoggingEnabled) {
+                logEntry.append("[").append(timestamp).append("] ")
+                        .append(entityType).append(" temporarily removed: ")
+                        .append("Cause=").append("ChunkUnload")
+                        .append(", Location=").append(location);
+            }
 
         } else if (entityCauses.contains(cause)) {
                 logEntry.append("[").append(timestamp).append("] ")
