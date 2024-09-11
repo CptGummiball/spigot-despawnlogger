@@ -36,6 +36,7 @@ loggable-entities:
 max-log-files: 10
 log-nametags: true
 restart-check-enabled: true  # New option to enable or disable restart checks
+chunk-unload-logging: false # option to enable chuckunload logging (WARNING: it will spam the logs)
 ```
 
 ### Configurable Options
